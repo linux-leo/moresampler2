@@ -10,6 +10,7 @@
 
 const char* version = "0.2.5";
 
+// circular interpolation of two radian values
 static FP_TYPE linterpc(FP_TYPE a, FP_TYPE b, FP_TYPE ratio) {
   FP_TYPE ax = cos_2(a);
   FP_TYPE ay = sin_2(a);
@@ -20,6 +21,7 @@ static FP_TYPE linterpc(FP_TYPE a, FP_TYPE b, FP_TYPE ratio) {
   return atan2(cy, cx);
 }
 
+// Header
 static void interp_nmframe(llsm_nmframe* dst, llsm_nmframe* src,
   FP_TYPE ratio, int dst_voiced, int src_voiced) {
   for(int i = 0; i < dst -> npsd; i ++)
@@ -98,19 +100,24 @@ int save_llsm(llsm_chunk* chunk, const char* filename, llsm_aoptions* conf, int*
   fwrite(fs, sizeof(int), 1, f);
   fwrite(nbit, sizeof(int), 1, f);
 
+  // Write chunk->conf
   write_conf(f, conf);
 
+  // Frame data
   for (int i = 0; i < *nfrm; ++i) {
     llsm_container* frame = chunk->frames[i];
 
+    // f0
     FP_TYPE* f0 = llsm_container_get(frame, LLSM_FRAME_F0);
     fwrite(f0, sizeof(FP_TYPE), 1, f);
 
+    // HM Frame
     llsm_hmframe* hm = llsm_container_get(frame, LLSM_FRAME_HM);
     fwrite(&hm->nhar, sizeof(int), 1, f);
     fwrite(hm->ampl, sizeof(FP_TYPE), hm->nhar, f);
     fwrite(hm->phse, sizeof(FP_TYPE), hm->nhar, f);
 
+    // NM Frame
     llsm_nmframe* nm = llsm_container_get(frame, LLSM_FRAME_NM);
     fwrite(&nm->npsd, sizeof(int), 1, f);
     fwrite(nm->psd, sizeof(FP_TYPE), nm->npsd, f);
@@ -146,6 +153,7 @@ llsm_chunk* read_llsm(const char* filename, int* nfrm, int* fs, int* nbit) {
   fread(fs, sizeof(int), 1, f);
   fread(nbit, sizeof(int), 1, f);
 
+  // Read conf
   llsm_aoptions* aopt = llsm_create_aoptions();
   int conf_r = read_conf(f, aopt);
   if (conf_r != 0) {
@@ -153,20 +161,21 @@ llsm_chunk* read_llsm(const char* filename, int* nfrm, int* fs, int* nbit) {
     fclose(f);
     return NULL;
   }
-  llsm_container* conf = llsm_aoptions_toconf(aopt, *fs / 2.0);
+  llsm_container* conf = llsm_aoptions_toconf(aopt, 44100.0 / 2);
   llsm_delete_aoptions(aopt);
-  llsm_container_attach(conf, LLSM_CONF_NFRM,
-    llsm_create_int(*nfrm), llsm_delete_int, llsm_copy_int);
+  llsm_container_attach(conf, LLSM_CONF_NFRM, llsm_create_int(*nfrm), llsm_delete_int, llsm_copy_int);
   llsm_chunk* chunk = llsm_create_chunk(conf, *nfrm);
   llsm_delete_container(conf);
 
   for (int i = 0; i < *nfrm; ++i) {
     llsm_container* frame = llsm_create_frame(0, 0, 0, 0);
 
+    // f0
     FP_TYPE* f0 = malloc(sizeof(FP_TYPE));
     fread(f0, sizeof(FP_TYPE), 1, f);
     llsm_container_attach(frame, LLSM_FRAME_F0, f0, free, llsm_copy_fp);
 
+    // HM
     int nhar;
     fread(&nhar, sizeof(int), 1, f);
     llsm_hmframe* hm = llsm_create_hmframe(nhar);
@@ -174,6 +183,7 @@ llsm_chunk* read_llsm(const char* filename, int* nfrm, int* fs, int* nbit) {
     fread(hm->phse, sizeof(FP_TYPE), nhar, f);
     llsm_container_attach(frame, LLSM_FRAME_HM, hm, llsm_delete_hmframe, llsm_copy_hmframe);
 
+    // NM
     llsm_nmframe* nm = malloc(sizeof(llsm_nmframe));
     fread(&nm->npsd, sizeof(int), 1, f);
     nm->psd = malloc(sizeof(FP_TYPE) * nm->npsd);
@@ -204,6 +214,7 @@ llsm_chunk* read_llsm(const char* filename, int* nfrm, int* fs, int* nbit) {
 #define LOG2DB (20.0 / 2.3025851)
 #define mag2db(x) (log_2(x) * LOG2DB)
 
+// dst <- (dst &> src)
 static void interp_llsm_frame(llsm_container* dst, llsm_container* src,
   FP_TYPE ratio) {
 # define EPS 1e-8
@@ -218,6 +229,7 @@ static void interp_llsm_frame(llsm_container* dst, llsm_container* src,
   FP_TYPE* dst_vtmagn = llsm_container_get(dst, LLSM_FRAME_VTMAGN);
   FP_TYPE* src_vtmagn = llsm_container_get(src, LLSM_FRAME_VTMAGN);
 
+  // always take the frequency of the voiced frame
   llsm_container* voiced = dst_f0 <= 0 && src_f0 <= 0 ? NULL :
     (src_f0 > 0 ? src : dst);
   int bothvoiced = dst_f0 > 0 && src_f0 > 0;
@@ -305,7 +317,6 @@ int base64decoderForUtau(char x, char y)
 	return ans;
 }
 
-// Fix: add max_len to prevent buffer overflow
 int getF0Contour(char *input, double *output, int max_len)
 {
 	int i, j, count, length;
@@ -342,6 +353,7 @@ int getF0Contour(char *input, double *output, int max_len)
 	return count;
 }
 
+//飴屋／菖蒲氏のworld4utau.cppから移植
 double getFreqAvg(double f0[], int tLen)
 {
 	int i, j;
@@ -355,6 +367,7 @@ double getFreqAvg(double f0[], int tLen)
 		if (value < 1000.0 && value > 55.0)
 		{
 			r = 1.0;
+			//連続して近い値の場合のウエイトを重くする
 			for (j = 0; j <= 5; j++)
 			{
 				if (i > j) {
@@ -374,6 +387,7 @@ double getFreqAvg(double f0[], int tLen)
 }
 
 static int parse_note_to_midi(const char *note_str) {
+    // Semitone offsets from C
     int base_note = -1;
     switch (toupper(note_str[0])) {
         case 'C': base_note = 0; break;
@@ -411,6 +425,8 @@ void convert_cents_to_hz_offset(const double* cents, int cents_len,
                                 float* out_ratio_offset) {
 
     const float frame_duration_sec = (float)nhop / (float)fs;
+
+    // PIT grid interval from world4utau: pStep samples per PIT point
     const float pit_interval_sec = (60.0f / 96.0f) / tempo;
 
     for (int i = 0; i < nfrm; ++i) {
@@ -428,7 +444,7 @@ void convert_cents_to_hz_offset(const double* cents, int cents_len,
         float cents_interp = (float)(cents[i0] * (1.0f - frac) + cents[i1] * frac);
 
         float ratio = powf(2.0f, cents_interp / 1200.0f);
-        out_ratio_offset[i] = ratio - 1.0f;
+        out_ratio_offset[i] = ratio - 1.0f; // ratio offset, not Hz
     }
 }
 
@@ -450,8 +466,10 @@ void apply_velocity(llsm_chunk* chunk, float velocity, int* consonant_frames, in
 
     *consonant_frames = consonant_frames_new;
 
+    // temp chunk with resampled consonants
     llsm_chunk* tmp = llsm_create_chunk(chunk->conf, consonant_frames_new);
 
+    // copy temp consonants back into chunk (deep copy)
     for (int i = 0; i < consonant_frames_new; i++) {
         FP_TYPE mapped =
             (FP_TYPE)i * consonant_frames_old / consonant_frames_new;
@@ -480,9 +498,11 @@ void apply_velocity(llsm_chunk* chunk, float velocity, int* consonant_frames, in
         chunk->frames[i] = llsm_copy_container(tmp->frames[i]);
     }
 
+    // --- vowel region inside the *sample* ---
     int vowel_frames_old = total_frames - consonant_frames_old;
     int vowel_frames_new = total_frames - consonant_frames_new;
 
+    // clean tail *within the sample region*
     for (int i = 0; i < vowel_frames_new; i++) {
         int dst_idx = consonant_frames_new + i;
         int old_idx = consonant_frames_old +
@@ -512,6 +532,9 @@ void apply_velocity(llsm_chunk* chunk, float velocity, int* consonant_frames, in
     llsm_delete_chunk(tmp);
 }
 
+// according to my research on the tension parameter in Synthesizer V,
+// as tension increases, the higher harmonics are amplified
+// and as tension decreases, they are attenuated.
 void apply_tension(llsm_chunk* chunk, FP_TYPE tension) {
     int* nfrm_p = llsm_container_get(chunk->conf, LLSM_CONF_NFRM);
     if (!nfrm_p) return;
@@ -557,12 +580,26 @@ void apply_tension(llsm_chunk* chunk, FP_TYPE tension) {
     }
 }
 
+/*void apply_gender(llsm_chunk* chunk, int gender) {
+  int* total_frames = llsm_container_get(chunk->conf, LLSM_CONF_NFRM);
+  for (int i = 0; i < *total_frames; ++i) {
+      llsm_hmframe* hm = llsm_container_get(chunk->frames[i], LLSM_FRAME_HM);
+      if (!hm) continue;
+
+      int nspec = llsm_fparray_length(hm);
+      for (int j = 0; j < nspec; ++j) {
+          hm[j] *= (gender == 1) ? 1.1f : 0.9f;
+      }
+  }
+  return;
+}*/
+
 typedef struct {
     int Mt;
     int t;
     int g;
     int P;
-    int e;
+    int e; // this flag is unused, kept as an example
 } Flags;
 
 int clamp_int(int val, int lo, int hi) {
@@ -571,17 +608,17 @@ int clamp_int(int val, int lo, int hi) {
 
 // Fix: rewritten to use pointer advancement properly
 void parse_flag_string(const char* str, Flags* flags_out) {
-    flags_out->Mt = 0;
+    flags_out->Mt = 0; // default values
     flags_out->t = 0;
     flags_out->g = 0;
     flags_out->P = 0;
-    flags_out->e = 0;
+    flags_out->e = 0; // default to false
 
     while (*str != '\0') {
         if (str[0] == 'M' && str[1] == 't') {
             str += 2;
             char* end;
-            flags_out->Mt = strtol(str, &end, 10);
+            flags_out->Mt = strtol(str, &end, 10); // str gets advanced
             flags_out->Mt = clamp_int(flags_out->Mt, -100, 100);
             str = end;
         } else if (*str == 't') {
@@ -594,7 +631,7 @@ void parse_flag_string(const char* str, Flags* flags_out) {
             str++;
             char* end;
             flags_out->g = strtol(str, &end, 10);
-            flags_out->g = clamp_int(flags_out->g, -100, 100);
+            flags_out->g = clamp_int(flags_out->g, -100, 100); // example clamp
             str = end;
         } else if (*str == 'P') {
             str++;
@@ -606,6 +643,7 @@ void parse_flag_string(const char* str, Flags* flags_out) {
             str++;
             flags_out->e = 1;
         } else {
+            // Skip unknown characters to avoid infinite loop
             str++;
         }
     }
@@ -620,7 +658,7 @@ void normalize_waveform(FP_TYPE* waveform, int length, FP_TYPE target_peak, int 
         if (abs_val > peak) peak = abs_val;
     }
 
-    if (peak < 1e-9f) return;
+    if (peak < 1e-9f) return; // avoid divide-by-zero
 
     FP_TYPE full_scale = target_peak / peak;
     FP_TYPE blend = P_flag / 100.0f;
@@ -632,7 +670,7 @@ void normalize_waveform(FP_TYPE* waveform, int length, FP_TYPE target_peak, int 
 
 int parse_tempo(const char *tempo_str) {
     if (tempo_str[0] == '!') {
-        tempo_str++;
+        tempo_str++; // skip the '!'
     }
     return atoi(tempo_str);
 }
@@ -785,8 +823,6 @@ int resample(resampler_data* data) {
       chunk_new->frames[i] = llsm_copy_container(chunk->frames[start_frame + i]);
     }
   }
-
-  // Decompose phases before stretching (VSPHSE is frame-local, safe to interpolate)
   llsm_chunk_tolayer1(chunk_new, 2048);
   llsm_chunk_phasepropagate(chunk_new, -1);
 
@@ -916,7 +952,6 @@ int resample(resampler_data* data) {
   llsm_chunk_phasepropagate(chunk_new, 1);
   llsm_chunk_tolayer0(chunk_new);
   apply_tension(chunk_new, flags.Mt);
-
   printf("Synthesis\n");
 
   llsm_output* out = llsm_synthesize(opt_s, chunk_new);
