@@ -544,7 +544,7 @@ void apply_tension(llsm_chunk* chunk, FP_TYPE tension) {
     const FP_TYPE t = tension / (FP_TYPE)100.0;
 
 	// Global strength of spectral tilt in dB (±)
-    const FP_TYPE slope_db = (FP_TYPE)32.0 * t;
+    const FP_TYPE slope_db = (FP_TYPE)32.0 * t; // try 14–20 to taste
 
 	// Shape params: pivot ~ where tilt crosses 0; alpha controls knee sharpness
     const FP_TYPE pivot = (FP_TYPE)0.25; // 0..1 (slightly below mid so mids participate)
@@ -840,6 +840,7 @@ int resample(resampler_data* data) {
   }
   llsm_chunk_tolayer1(chunk_new, 2048);
   llsm_chunk_phasepropagate(chunk_new, -1);
+  printf("nfrm: %d\n", total_frames);
 
   // Apply velocity
   int frames_for_velocity = sample_frames;
