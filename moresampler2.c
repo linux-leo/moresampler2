@@ -90,11 +90,13 @@ int read_conf(FILE* f, llsm_aoptions* opt) {
 int save_llsm(llsm_chunk* chunk, const char* filename, llsm_aoptions* conf, int* fs, int* nbit) {
   FILE* f = fopen(filename, "wb");
   if (!f) return -1;
-
+	
+	// Header
   fwrite("LLSM2", 1, 5, f);
   int version = 1;
   fwrite(&version, sizeof(int), 1, f);
 
+	// Frame count
   int* nfrm = llsm_container_get(chunk->conf, LLSM_CONF_NFRM);
   fwrite(nfrm, sizeof(int), 1, f);
   fwrite(fs, sizeof(int), 1, f);
@@ -314,7 +316,7 @@ int base64decoderForUtau(char x, char y)
 
 	ans = (ans1<<6) | ans2;
 	if(ans >= 2048) ans -= 4096;
-	return ans;
+	return ans; // invalid note
 }
 
 int getF0Contour(char *input, double *output, int max_len)
