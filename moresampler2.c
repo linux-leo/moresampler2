@@ -89,12 +89,12 @@ int read_conf(FILE* f, llsm_aoptions* opt) {
 int save_llsm(llsm_chunk* chunk, const char* filename, llsm_aoptions* conf, int* fs, int* nbit) {
   FILE* f = fopen(filename, "wb");
   if (!f) return -1;
-  
+
   // Header
   fwrite("LLSM2", 1, 5, f);
   int version = 1;
   fwrite(&version, sizeof(int), 1, f);
-  
+
   // Frame count
   int* nfrm = llsm_container_get(chunk->conf, LLSM_CONF_NFRM);
   fwrite(nfrm, sizeof(int), 1, f);
