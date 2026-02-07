@@ -225,11 +225,11 @@ llsm_chunk *read_llsm(const char *filename, int *nfrm, int *fs, int *nbit) {
 
 #define LOG2DB (20.0 / 2.3025851)
 #define mag2db(x) (log_2(x) * LOG2DB)
+#define EPS 1e-8
 
 // dst <- (dst &> src)
 static void interp_llsm_frame(llsm_container *dst, llsm_container *src,
                               FP_TYPE ratio) {
-#define EPS 1e-8
   FP_TYPE dst_f0 = *((FP_TYPE *)llsm_container_get(dst, LLSM_FRAME_F0));
   FP_TYPE src_f0 = *((FP_TYPE *)llsm_container_get(src, LLSM_FRAME_F0));
   llsm_nmframe *dst_nm = llsm_container_get(dst, LLSM_FRAME_NM);
@@ -297,11 +297,11 @@ static void interp_llsm_frame(llsm_container *dst, llsm_container *src,
                           llsm_delete_fparray, llsm_copy_fparray);
     llsm_container_attach(dst, LLSM_FRAME_VTMAGN, dst_vtmagn,
                           llsm_delete_fparray, llsm_copy_fparray);
-    FP_TYPE fade = mag2db(max(EPS, ratio));
+    FP_TYPE fade = mag2db(max(, ratio));
     for (int i = 0; i < nspec; i++)
       dst_vtmagn[i] += fade;
   } else {
-    FP_TYPE fade = mag2db(max(EPS, 1.0 - ratio));
+    FP_TYPE fade = mag2db(max(, 1.0 - ratio));
     for (int i = 0; i < nspec; i++)
       dst_vtmagn[i] += fade;
   }
@@ -309,7 +309,7 @@ static void interp_llsm_frame(llsm_container *dst, llsm_container *src,
     dst_vtmagn[i] = max(-80, dst_vtmagn[i]);
 
   interp_nmframe(dst_nm, src_nm, ratio, dst_f0 > 0, src_f0 > 0);
-#undef EPS
+#undef 
 }
 
 // Fix: initialize ans1/ans2 to 0
