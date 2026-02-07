@@ -554,7 +554,8 @@ void apply_tension(llsm_chunk* chunk, FP_TYPE tension) {
     for (int i = 0; i < *nfrm_p; ++i) {
         llsm_hmframe* hm = llsm_container_get(chunk->frames[i], LLSM_FRAME_HM);
         if (!hm || !hm->ampl || hm->nhar <= 0) continue;
-
+        
+        // optional: measure pre-tilt energy to normalize later
         FP_TYPE sum0 = 0;
         for (int j = 0; j < hm->nhar; ++j) sum0 += hm->ampl[j];
 
@@ -562,7 +563,8 @@ void apply_tension(llsm_chunk* chunk, FP_TYPE tension) {
 			// 0..1 index low→high, eased so top doesn’t dominate
             FP_TYPE w = (hm->nhar > 1) ? (FP_TYPE)j / (FP_TYPE)(hm->nhar - 1) : 0;
             FP_TYPE w_eased = (FP_TYPE)0.5 - (FP_TYPE)0.5 * (FP_TYPE)cos(M_PI * w); // cosine ease
-			// optional: measure pre-tilt energy to normalize later
+
+            // Soft pivoted tilt in dB
             FP_TYPE h = (FP_TYPE)tanh(alpha * (w_eased - pivot)); // ~[-1,1] with soft knee
             FP_TYPE g_db = slope_db * h; // positive: boost highs, cut lows
             FP_TYPE a = hm->ampl[j];
