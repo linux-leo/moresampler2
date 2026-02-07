@@ -21,7 +21,6 @@ static FP_TYPE linterpc(FP_TYPE a, FP_TYPE b, FP_TYPE ratio) {
   return atan2(cy, cx);
 }
 
-// Header
 static void interp_nmframe(llsm_nmframe* dst, llsm_nmframe* src,
   FP_TYPE ratio, int dst_voiced, int src_voiced) {
   for(int i = 0; i < dst -> npsd; i ++)
