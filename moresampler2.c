@@ -539,10 +539,15 @@ void apply_tension(llsm_chunk* chunk, FP_TYPE tension) {
     int* nfrm_p = llsm_container_get(chunk->conf, LLSM_CONF_NFRM);
     if (!nfrm_p) return;
 
+	// Map [-100,100] -> [-1,1]
     const FP_TYPE t = tension / (FP_TYPE)100.0;
+
+	// Global strength of spectral tilt in dB (±)
     const FP_TYPE slope_db = (FP_TYPE)32.0 * t;
-    const FP_TYPE pivot = (FP_TYPE)0.25;
-    const FP_TYPE alpha = (FP_TYPE)2.6;
+
+	// Shape params: pivot ~ where tilt crosses 0; alpha controls knee sharpness
+    const FP_TYPE pivot = (FP_TYPE)0.25; // 0..1 (slightly below mid so mids participate)
+    const FP_TYPE alpha = (FP_TYPE)2.6;  // 1.6–2.8 soft→hard knee
     const FP_TYPE eps   = (FP_TYPE)1e-12;
 
     for (int i = 0; i < *nfrm_p; ++i) {
@@ -553,11 +558,12 @@ void apply_tension(llsm_chunk* chunk, FP_TYPE tension) {
         for (int j = 0; j < hm->nhar; ++j) sum0 += hm->ampl[j];
 
         for (int j = 0; j < hm->nhar; ++j) {
+			// 0..1 index low→high, eased so top doesn’t dominate
             FP_TYPE w = (hm->nhar > 1) ? (FP_TYPE)j / (FP_TYPE)(hm->nhar - 1) : 0;
-            FP_TYPE w_eased = (FP_TYPE)0.5 - (FP_TYPE)0.5 * (FP_TYPE)cos(M_PI * w);
-
-            FP_TYPE h = (FP_TYPE)tanh(alpha * (w_eased - pivot));
-            FP_TYPE g_db = slope_db * h;
+            FP_TYPE w_eased = (FP_TYPE)0.5 - (FP_TYPE)0.5 * (FP_TYPE)cos(M_PI * w); // cosine ease
+			// optional: measure pre-tilt energy to normalize later
+            FP_TYPE h = (FP_TYPE)tanh(alpha * (w_eased - pivot)); // ~[-1,1] with soft knee
+            FP_TYPE g_db = slope_db * h; // positive: boost highs, cut lows
             FP_TYPE a = hm->ampl[j];
             FP_TYPE adb = (FP_TYPE)20.0 * (FP_TYPE)log10(a + eps);
             adb += g_db;
@@ -568,10 +574,12 @@ void apply_tension(llsm_chunk* chunk, FP_TYPE tension) {
             hm->ampl[j] = anew;
         }
 
+        // Optional energy preservation keeps loudness comparable and reveals spectral shape
+        // Comment this block out if you WANT overall loudness to change with tension.
         FP_TYPE sum1 = 0;
         for (int j = 0; j < hm->nhar; ++j) sum1 += hm->ampl[j];
         if (sum0 > 0 && sum1 > 0) {
-            FP_TYPE k = sum0 / sum1;
+            FP_TYPE k = sum0 / sum1; // rescale to original total linear amplitude
             for (int j = 0; j < hm->nhar; ++j) {
                 FP_TYPE v = hm->ampl[j] * k;
                 hm->ampl[j] = v > 1.0 ? 1.0 : v;
@@ -771,18 +779,22 @@ int resample(resampler_data* data) {
   int start_frame = (int)round((data->offset / 1000.0) * fs / nhop);
   int end_frame;
   if (data->cutoff < 0) {
+	  // Negative cutoff: measured from offset
       end_frame = (int)round(((data->offset + fabs(data->cutoff)) / 1000.0) * fs / nhop);
   } else {
+	  // Positive cutoff: measured from end of file
       end_frame = nfrm - (int)round((data->cutoff / 1000.0) * fs / nhop);
   }
   if (start_frame < 0) start_frame = 0;
   if (end_frame > nfrm) end_frame = nfrm;
   if (end_frame <= start_frame) end_frame = start_frame + 1;
-
+  
+  // Calculate consonant frames (unstretched)
   int consonant_frames = (int)round((data->consonant / 1000.0) * fs / nhop);
   if (consonant_frames > end_frame - start_frame)
       consonant_frames = end_frame - start_frame;
   int sample_frames = end_frame - start_frame;
+  // Calculate total output frames to match data->length (ms)
   int total_frames = (int)round((data->length / 1000.0) * fs / nhop);
   if (total_frames < consonant_frames) total_frames = consonant_frames + 1;
 
@@ -951,7 +963,7 @@ int resample(resampler_data* data) {
   // Reconstruct phases and convert back
   llsm_chunk_phasepropagate(chunk_new, 1);
   llsm_chunk_tolayer0(chunk_new);
-  apply_tension(chunk_new, flags.Mt);
+  apply_tension(chunk_new, flags.Mt); // apply tension based on Mt flag
   printf("Synthesis\n");
 
   llsm_output* out = llsm_synthesize(opt_s, chunk_new);
@@ -987,11 +999,11 @@ int resample(resampler_data* data) {
 
 int main(int argc, char* argv[]) {
     printf("moresampler2 version %s\n", version);
-    if (argc == 2) {
+    if (argc == 2) { // user dragged and dropped a folder into the executable
         printf("At the moment, autolabeling is not supported.\n");
         return 0;
     }
-    if (argc < 2) {
+    if (argc < 2) { 
         printf("Moresampler is meant to be used inside of UTAU or OpenUtau.\n");
         return 1;
     }
